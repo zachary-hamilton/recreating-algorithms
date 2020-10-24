@@ -1,17 +1,27 @@
 # dbscan.py
 '''
 Recreating the DB scan algorithm.
+
+TO DO:
+- refactor and comment
 '''
 class Cluster:
-    def __init__(self):
+    def __init__(self, cluster_name):
         self.core_points = []
         self.non_core_points = []
+        self.name = cluster_name
         
     def add_to_core(self, point):
         self.core_points.append(point)
 
     def add_to_non_core(self, point):
         self.non_core_points.append(point)
+
+    def get_core_points(self):
+        return self.core_points
+
+    def get_non_core_points(self):
+        return self.non_core_points
 
     def get_all_points(self):
         return self.core_points + self.non_core_points
@@ -25,6 +35,7 @@ class DBScan:
         self.max_distance = max_distance
         self.min_cluster_size = min_cluster_size
         self.cluster_list = []
+        self.noise = []
 
     def get_neighbors(self, current_point, points):
         return [each for each in points if distance(current_point, each) <= self.max_distance]
@@ -38,36 +49,40 @@ class DBScan:
         current_neighbors = self.get_neighbors(current_point, points)
         if len(current_neighbors) >= self.min_cluster_size - 1:
             cluster.add_to_core(current_point)
-            return self.cluster_creation(current_neighbors, points, cluster)
+            for each in current_neighbors:
+                if each not in neighbors:
+                    neighbors.append(each)
         else:
             cluster.add_to_non_core(current_point)
+        for each in self.noise:
+            if distance(current_point, each) <= self.max_distance:
+                self.noise.remove(each)
+                cluster.add_to_non_core(each)
         return self.cluster_creation(neighbors, points, cluster)
 
-    def fit(self, points):
+    def fit(self, points, current_cluster=1):
         if len(points) == 0:
             return
         current_point = points[0]
         points.remove(current_point)
         neighborhood = self.get_neighbors(current_point, points)
         if len(neighborhood) >= self.min_cluster_size - 1:
-            new_cluster = Cluster()
+            new_cluster = Cluster(current_cluster)
             new_cluster.add_to_core(current_point)
             self.cluster_creation(neighborhood, points, new_cluster)
-            self.cluster_list.append(new_cluster)           
-        self.fit(points)
+            current_cluster += 1
+            self.cluster_list.append(new_cluster)
+        else:
+            self.noise.append(current_point)        
+        self.fit(points, current_cluster=current_cluster)
 
     def predict(self, point):
         for cluster in self.cluster_list:
-            if point in cluster:
+            if point in cluster.get_all_points():
                 return cluster.name
-        
-
-
-if __name__ == '__main__':
-    points = [(1,2),(3,4),(5,6),(7,8),(10,2), (10,1),(3,3)]
-    model = DBScan(3, 2)
-    model.fit(points)
-    for each in model.cluster_list:
-        print(each.get_all_points())
-        print('--')
-   
+        for cluster in self.cluster_list:
+            for each in cluster.get_core_points():
+                if distance(point, each) <= self.max_distance:
+                    return cluster.name
+                else:
+                    return 0
